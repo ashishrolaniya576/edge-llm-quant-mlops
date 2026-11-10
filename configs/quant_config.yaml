@@ -1,0 +1,37 @@
+# ==============================================================================
+# Edge LLM GGUF Quantization Pipeline Configuration
+# ==============================================================================
+
+# Source Merged Checkpoint
+source:
+  merged_model_dir: "./checkpoints/merged_model"
+  model_family: "qwen2"
+
+# Destination & Artifact Directory
+destination:
+  output_dir: "./models_gguf"
+  base_name: "qwen2.5-1.5b-telemetry"
+  fp16_filename: "qwen2.5-1.5b-telemetry-f16.gguf"
+
+# Quantization Variants for Edge Deployment
+quantization_targets:
+  - type: "Q8_0"
+    filename: "qwen2.5-1.5b-telemetry-q8_0.gguf"
+    description: "8-bit quantization for balanced quality and desktop/server CPU inference"
+    bits_per_weight: 8.5
+    recommended_min_ram_gb: 3.5
+
+  - type: "Q4_K_M"
+    filename: "qwen2.5-1.5b-telemetry-q4_k_m.gguf"
+    description: "4-bit medium k-quant optimized for constrained edge devices and gateways"
+    bits_per_weight: 4.5
+    recommended_min_ram_gb: 2.0
+
+# Execution Parameters
+execution:
+  nthreads: 4
+  verify_gguf_magic: true
+  verify_tensor_counts: true
+  llama_cpp_repo_url: "https://github.com/ggerganov/llama.cpp.git"
+  convert_script_name: "convert_hf_to_gguf.py"
+  quantize_binary_name: "llama-quantize"

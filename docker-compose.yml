@@ -1,0 +1,47 @@
+# ==============================================================================
+# Edge LLM Quantized MLOps - Docker Compose Deployment Specification
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  edge-llm-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edge-llm-quant-mlops:latest
+    container_name: edge-llm-quant-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=/app/models_gguf/qwen2.5-1.5b-telemetry-q4_k_m.gguf
+      - N_THREADS=2
+      - N_CTX=1024
+      - HOST=0.0.0.0
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Read-only mount of quantized model artifacts and configurations
+      - ./models_gguf:/app/models_gguf:ro
+      - ./configs:/app/configs:ro
+      - ./data:/app/data:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

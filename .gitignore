@@ -1,0 +1,70 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# PyTorch, Hugging Face & Model Checkpoints
+checkpoints/
+models_gguf/*.gguf
+!models_gguf/.gitkeep
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.gguf
+
+# Weights & Biases, TensorBoard & Logging
+wandb/
+runs/
+*.log
+
+# Caches & Temporary Files
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.tmp
+*.temp
+
+# Benchmarking Outputs (Keep clean repo, generated on demand)
+benchmark_results.json
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store

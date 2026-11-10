@@ -1,0 +1,67 @@
+# ==============================================================================
+# Edge LLM QLoRA Fine-Tuning Configuration
+# ==============================================================================
+
+# Model Identification & Base Architecture
+model:
+  name_or_path: "Qwen/Qwen2.5-1.5B-Instruct"
+  torch_dtype: "bfloat16"
+  trust_remote_code: true
+  device_map: "auto"
+
+# QLoRA (4-bit NormalFloat Quantization)
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: "bfloat16"
+
+# LoRA Adapter Configuration
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  task_type: "CAUSAL_LM"
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+# Training Hyperparameters & Optimization
+training:
+  output_dir: "./checkpoints/qlora_adapter"
+  merged_output_dir: "./checkpoints/merged_model"
+  num_train_epochs: 3
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 0.0002
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  weight_decay: 0.01
+  max_grad_norm: 0.3
+  logging_steps: 5
+  eval_strategy: "steps"
+  eval_steps: 25
+  save_strategy: "steps"
+  save_steps: 25
+  save_total_limit: 2
+  bf16: true
+  fp16: false
+  gradient_checkpointing: true
+  optim: "paged_adamw_8bit"
+  max_seq_length: 512
+  seed: 42
+  report_to:
+    - "tensorboard"
+
+# Dataset Specification
+data:
+  train_data_path: "data/sample_logs.jsonl"
+  train_split_ratio: 0.85
+  dataset_text_field: "text"

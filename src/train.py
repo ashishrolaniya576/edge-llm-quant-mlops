@@ -10,10 +10,8 @@ from __future__ import annotations
 import argparse
 import gc
 import logging
-import os
-import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import psutil
 import torch
@@ -64,16 +62,16 @@ class MemoryUsageCallback(TrainerCallback):
                 logger.info("Step %d | Host RSS: %.2f MB", state.global_step, rss_mb)
 
 
-def load_yaml_config(config_path: str) -> Dict[str, Any]:
+def load_yaml_config(config_path: str) -> dict[str, Any]:
     """Load configuration YAML file."""
     path = Path(config_path)
     if not path.is_file():
         raise FileNotFoundError(f"Configuration file not found: {path.resolve()}")
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
-def build_quantization_config(use_cuda: bool, quant_cfg: Dict[str, Any]) -> Optional[Any]:
+def build_quantization_config(use_cuda: bool, quant_cfg: dict[str, Any]) -> Any | None:
     """Configure bitsandbytes 4-bit NormalFloat quantization when GPU is available."""
     if not use_cuda:
         logger.warning(
@@ -86,7 +84,11 @@ def build_quantization_config(use_cuda: bool, quant_cfg: Dict[str, Any]) -> Opti
         from transformers import BitsAndBytesConfig
 
         compute_dtype_str = quant_cfg.get("bnb_4bit_compute_dtype", "bfloat16")
-        compute_dtype = torch.bfloat16 if compute_dtype_str == "bfloat16" and torch.cuda.is_bf16_supported() else torch.float16
+        compute_dtype = (
+            torch.bfloat16
+            if compute_dtype_str == "bfloat16" and torch.cuda.is_bf16_supported()
+            else torch.float16
+        )
 
         return BitsAndBytesConfig(
             load_in_4bit=quant_cfg.get("load_in_4bit", True),
@@ -99,7 +101,7 @@ def build_quantization_config(use_cuda: bool, quant_cfg: Dict[str, Any]) -> Opti
         return None
 
 
-def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str] = None) -> str:
+def run_qlora_training(config: dict[str, Any], data_path_override: str | None = None) -> str:
     """
     Execute QLoRA fine-tuning using Hugging Face Transformers, PEFT, and TRL.
 
@@ -111,6 +113,7 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
         Path to the saved LoRA adapter directory.
     """
     from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+
     from src.data_loader import prepare_hf_dataset
 
     model_cfg = config.get("model", {})
@@ -137,7 +140,7 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
         tokenizer.pad_token = tokenizer.eos_token
 
     logger.info("Loading Base Model: %s (CUDA Available: %s)", model_name, use_cuda)
-    model_kwargs: Dict[str, Any] = {
+    model_kwargs: dict[str, Any] = {
         "trust_remote_code": model_cfg.get("trust_remote_code", True),
     }
 
@@ -159,7 +162,11 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
             use_gradient_checkpointing=train_cfg.get("gradient_checkpointing", True),
         )
 
-    logger.info("Configuring LoRA Adapter: r=%d, alpha=%d", lora_cfg.get("r", 16), lora_cfg.get("lora_alpha", 32))
+    logger.info(
+        "Configuring LoRA Adapter: r=%d, alpha=%d",
+        lora_cfg.get("r", 16),
+        lora_cfg.get("lora_alpha", 32),
+    )
     peft_config = LoraConfig(
         r=lora_cfg.get("r", 16),
         lora_alpha=lora_cfg.get("lora_alpha", 32),
@@ -191,7 +198,7 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
         weight_decay=float(train_cfg.get("weight_decay", 0.01)),
         max_grad_norm=float(train_cfg.get("max_grad_norm", 0.3)),
         logging_steps=train_cfg.get("logging_steps", 5),
-        eval_strategy="steps" if hasattr(TrainingArguments, "eval_strategy") else "steps",
+        eval_strategy="steps",
         eval_steps=train_cfg.get("eval_steps", 25),
         save_strategy="steps",
         save_steps=train_cfg.get("save_steps", 25),
@@ -221,6 +228,7 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
     except ImportError:
         logger.warning("TRL SFTTrainer not found. Falling back to standard HuggingFace Trainer.")
         from transformers import DataCollatorForLanguageModeling, Trainer
+
         from src.data_loader import prepare_hf_dataset as prep_tok
 
         train_tok, eval_tok = prep_tok(
@@ -270,7 +278,12 @@ def merge_lora_to_base_model(
     from peft import PeftModel
 
     logger.info("Commencing LoRA weight merge...")
-    logger.info("Base model: %s | Adapter: %s | Target: %s", base_model_name, adapter_dir, output_dir)
+    logger.info(
+        "Base model: %s | Adapter: %s | Target: %s",
+        base_model_name,
+        adapter_dir,
+        output_dir,
+    )
 
     target_path = Path(output_dir)
     target_path.mkdir(parents=True, exist_ok=True)
@@ -300,14 +313,18 @@ def merge_lora_to_base_model(
     if tok_cfg_path.is_file():
         try:
             import json
-            with open(tok_cfg_path, "r", encoding="utf-8") as f:
+
+            with open(tok_cfg_path, encoding="utf-8") as f:
                 tok_cfg = json.load(f)
             if isinstance(tok_cfg.get("extra_special_tokens"), list):
                 tok_cfg["extra_special_tokens"] = {}
                 with open(tok_cfg_path, "w", encoding="utf-8") as f:
                     json.dump(tok_cfg, f, indent=2)
-                logger.info("Normalized extra_special_tokens in %s to dictionary format.", tok_cfg_path)
-        except Exception as exc:
+                logger.info(
+                    "Normalized extra_special_tokens in %s to dictionary format.",
+                    tok_cfg_path,
+                )
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
             logger.warning("Could not sanitize tokenizer_config.json: %s", exc)
 
     # Clean memory
@@ -323,7 +340,9 @@ def merge_lora_to_base_model(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="QLoRA Instruction Tuning and FP16 Model Merging Pipeline.")
+    parser = argparse.ArgumentParser(
+        description="QLoRA Instruction Tuning and FP16 Model Merging Pipeline."
+    )
     parser.add_argument(
         "--config",
         type=str,
@@ -381,4 +400,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -4,9 +4,6 @@ Unit and Integration Tests for FastAPI Edge Serving Endpoints.
 
 from __future__ import annotations
 
-import json
-from typing import Any, Dict
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -23,7 +20,9 @@ def client() -> TestClient:
 def test_health_endpoint_success(client: TestClient) -> None:
     """Verify GET /health returns 200 OK and expected monitoring metrics."""
     response = client.get("/health")
-    assert response.status_code == 200, f"Health check failed with {response.status_code}: {response.text}"
+    assert (
+        response.status_code == 200
+    ), f"Health check failed with {response.status_code}: {response.text}"
 
     data = response.json()
     assert "status" in data
@@ -109,4 +108,3 @@ def test_analyze_telemetry_invalid_temperature_bounds(client: TestClient) -> Non
     }
     response = client.post("/v1/telemetry/analyze", json=payload)
     assert response.status_code == 422
-

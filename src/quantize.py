@@ -17,7 +17,7 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
@@ -28,15 +28,17 @@ logging.basicConfig(
 logger = logging.getLogger("edge_quantize")
 
 GGUF_MAGIC = b"GGUF"
-LLAMA_CPP_CONVERT_URL = "https://raw.githubusercontent.com/ggerganov/llama.cpp/master/convert_hf_to_gguf.py"
+LLAMA_CPP_CONVERT_URL = (
+    "https://raw.githubusercontent.com/ggerganov/llama.cpp/master/convert_hf_to_gguf.py"
+)
 
 
-def load_quant_config(config_path: str) -> Dict[str, Any]:
+def load_quant_config(config_path: str) -> dict[str, Any]:
     """Load quantization YAML configuration."""
     path = Path(config_path)
     if not path.is_file():
         raise FileNotFoundError(f"Quantization config file not found: {path.resolve()}")
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -59,7 +61,10 @@ def ensure_conversion_script(cache_dir: Path) -> Path:
     # 2. Check if llama.cpp repository is cloned locally
     llama_cpp_paths = list(Path(".").glob("**/convert_hf_to_gguf.py"))
     if llama_cpp_paths:
-        logger.info("Discovered llama.cpp conversion script at: %s", llama_cpp_paths[0].resolve())
+        logger.info(
+            "Discovered llama.cpp conversion script at: %s",
+            llama_cpp_paths[0].resolve(),
+        )
         return llama_cpp_paths[0].resolve()
 
     # 3. Download from official repository
@@ -78,7 +83,7 @@ def ensure_conversion_script(cache_dir: Path) -> Path:
         ) from exc
 
 
-def find_llama_quantize_binary() -> Optional[str]:
+def find_llama_quantize_binary() -> str | None:
     """Locate the llama-quantize binary on PATH or common build locations."""
     # Check standard system PATH
     bin_path = shutil.which("llama-quantize")
@@ -100,7 +105,7 @@ def find_llama_quantize_binary() -> Optional[str]:
     return None
 
 
-def verify_gguf_file(file_path: Path) -> Dict[str, Any]:
+def verify_gguf_file(file_path: Path) -> dict[str, Any]:
     """
     Inspect and validate the binary header of a generated GGUF file.
 
@@ -179,7 +184,7 @@ def convert_hf_to_f16_gguf(
     ]
 
     logger.info("Running command: %s", " ".join(cmd))
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    res = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if res.returncode != 0:
         logger.error("Conversion failed with returncode %d", res.returncode)
         logger.error("Conversion STDOUT:\n%s", res.stdout)
@@ -221,7 +226,7 @@ def quantize_gguf(
             str(nthreads),
         ]
         logger.info("Executing quantization command: %s", " ".join(cmd))
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if res.returncode != 0:
             logger.error("Quantization failed for %s:\n%s", quant_type, res.stderr)
             raise RuntimeError(f"Quantization to {quant_type} failed: {res.stderr.strip()}")
@@ -245,8 +250,10 @@ def quantize_gguf(
                 if res_code != 0:
                     raise RuntimeError(f"llama_model_quantize returned code {res_code}")
             else:
-                raise AttributeError("llama_cpp does not expose direct quantize bindings in this build.")
-        except Exception as exc:
+                raise AttributeError(
+                    "llama_cpp does not expose direct quantize bindings in this build."
+                )
+        except (ImportError, AttributeError, RuntimeError, OSError) as exc:
             logger.warning(
                 "Native quantization binary and llama_cpp bindings unavailable: %s. "
                 "Creating designated GGUF target artifact placeholder for CI/testing pipeline.",
@@ -261,7 +268,9 @@ def quantize_gguf(
     return out_gguf_path
 
 
-def print_compression_summary(results: List[Dict[str, Any]], baseline_size_mb: Optional[float] = None) -> None:
+def print_compression_summary(
+    results: list[dict[str, Any]], baseline_size_mb: float | None = None
+) -> None:
     """Print an ASCII summary table detailing binary size reductions and compression ratios."""
     print("\n" + "=" * 80)
     print(f"{'EDGE LLM QUANTIZATION REPORT':^80}")
@@ -287,7 +296,9 @@ def print_compression_summary(results: List[Dict[str, Any]], baseline_size_mb: O
     print("=" * 80 + "\n")
 
 
-def run_pipeline(config: Dict[str, Any], model_dir_override: Optional[str] = None) -> List[Dict[str, Any]]:
+def run_pipeline(
+    config: dict[str, Any], model_dir_override: str | None = None
+) -> list[dict[str, Any]]:
     """
     Run complete conversion and quantization pipeline according to configuration.
 
@@ -303,7 +314,9 @@ def run_pipeline(config: Dict[str, Any], model_dir_override: Optional[str] = Non
     exec_cfg = config.get("execution", {})
     targets_cfg = config.get("quantization_targets", [])
 
-    hf_model_dir = Path(model_dir_override or source_cfg.get("merged_model_dir", "./checkpoints/merged_model"))
+    hf_model_dir = Path(
+        model_dir_override or source_cfg.get("merged_model_dir", "./checkpoints/merged_model")
+    )
     out_dir = Path(dest_cfg.get("output_dir", "./models_gguf"))
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -313,7 +326,7 @@ def run_pipeline(config: Dict[str, Any], model_dir_override: Optional[str] = Non
     cache_dir = Path("./tools/llama_cpp")
     convert_script = ensure_conversion_script(cache_dir)
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     # 1. Convert to FP16 GGUF
     if not fp16_path.exists():
@@ -352,7 +365,9 @@ def run_pipeline(config: Dict[str, Any], model_dir_override: Optional[str] = Non
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="End-to-End GGUF Conversion and Quantization Pipeline.")
+    parser = argparse.ArgumentParser(
+        description="End-to-End GGUF Conversion and Quantization Pipeline."
+    )
     parser.add_argument(
         "--config",
         type=str,
@@ -384,4 +399,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

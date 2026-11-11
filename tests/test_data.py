@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
 
 import pytest
 
@@ -16,7 +15,6 @@ from src.data_loader import (
     generate_synthetic_telemetry,
     load_raw_dataset,
 )
-
 
 SAMPLE_DATA_PATH = Path("data/sample_logs.jsonl")
 
@@ -37,9 +35,13 @@ def test_sample_logs_schema() -> None:
         assert "input" in row, f"Row {idx} missing 'input'."
         assert "output" in row, f"Row {idx} missing 'output'."
 
-        assert isinstance(row["instruction"], str) and row["instruction"].strip(), f"Row {idx} invalid instruction."
+        assert (
+            isinstance(row["instruction"], str) and row["instruction"].strip()
+        ), f"Row {idx} invalid instruction."
         assert isinstance(row["input"], str) and row["input"].strip(), f"Row {idx} invalid input."
-        assert isinstance(row["output"], str) and row["output"].strip(), f"Row {idx} invalid output."
+        assert (
+            isinstance(row["output"], str) and row["output"].strip()
+        ), f"Row {idx} invalid output."
 
         assert row["instruction"] == INSTRUCTION_TEXT
 
@@ -62,7 +64,9 @@ def test_sample_logs_structured_json_output() -> None:
 
         assert isinstance(parsed["root_cause"], str) and len(parsed["root_cause"]) > 5
         assert isinstance(parsed["remediation"], str) and len(parsed["remediation"]) > 5
-        assert parsed["severity"] in allowed_severities, f"Invalid severity '{parsed['severity']}' at row {idx}."
+        assert (
+            parsed["severity"] in allowed_severities
+        ), f"Invalid severity '{parsed['severity']}' at row {idx}."
 
 
 def test_synthetic_generator_creates_valid_dataset(tmp_path: Path) -> None:
@@ -115,9 +119,9 @@ def test_tokenization_length_bounds() -> None:
         prompt = format_chatml_prompt(row["instruction"], row["input"], row["output"])
         # Standard conservative heuristic: 1 word ~ 1.3 tokens
         estimated_tokens = int(len(prompt.split()) * 1.3)
-        if estimated_tokens > max_estimated_tokens:
-            max_estimated_tokens = estimated_tokens
+        max_estimated_tokens = max(max_estimated_tokens, estimated_tokens)
 
     # Verify all samples easily fit within 512 max length
-    assert max_estimated_tokens < 512, f"Sample exceeded max_length token estimate: {max_estimated_tokens}"
-
+    assert (
+        max_estimated_tokens < 512
+    ), f"Sample exceeded max_length token estimate: {max_estimated_tokens}"

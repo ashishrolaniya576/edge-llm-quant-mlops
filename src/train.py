@@ -295,6 +295,21 @@ def merge_lora_to_base_model(
     merged_model.save_pretrained(output_dir, safe_serialization=True)
     tokenizer.save_pretrained(output_dir)
 
+    # Sanitize tokenizer_config.json to ensure compatibility with transformers and llama.cpp
+    tok_cfg_path = target_path / "tokenizer_config.json"
+    if tok_cfg_path.is_file():
+        try:
+            import json
+            with open(tok_cfg_path, "r", encoding="utf-8") as f:
+                tok_cfg = json.load(f)
+            if isinstance(tok_cfg.get("extra_special_tokens"), list):
+                tok_cfg["extra_special_tokens"] = {}
+                with open(tok_cfg_path, "w", encoding="utf-8") as f:
+                    json.dump(tok_cfg, f, indent=2)
+                logger.info("Normalized extra_special_tokens in %s to dictionary format.", tok_cfg_path)
+        except Exception as exc:
+            logger.warning("Could not sanitize tokenizer_config.json: %s", exc)
+
     # Clean memory
     del base_model
     del model
@@ -366,3 +381,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -109,3 +109,4 @@ def test_analyze_telemetry_invalid_temperature_bounds(client: TestClient) -> Non
     }
     response = client.post("/v1/telemetry/analyze", json=payload)
     assert response.status_code == 422
+

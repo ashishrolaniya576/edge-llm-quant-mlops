@@ -35,3 +35,4 @@ execution:
   llama_cpp_repo_url: "https://github.com/ggerganov/llama.cpp.git"
   convert_script_name: "convert_hf_to_gguf.py"
   quantize_binary_name: "llama-quantize"
+

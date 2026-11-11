@@ -382,3 +382,4 @@ pytest tests/ -v
 Contributions, bug reports, and hardware benchmark PRs are welcome! Please ensure all PRs pass `pytest tests/` and adhere to repository linting standards.
 
 This project is open-source software licensed under the **[MIT License](LICENSE)**.
+

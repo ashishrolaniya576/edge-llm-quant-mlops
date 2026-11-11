@@ -85,3 +85,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
 
 # Production server entrypoint
 CMD ["python", "-m", "src.serve", "--host", "0.0.0.0", "--port", "8000"]
+

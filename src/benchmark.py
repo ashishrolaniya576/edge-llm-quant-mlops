@@ -18,7 +18,6 @@ import json
 import logging
 import os
 import platform
-import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -75,14 +74,17 @@ def benchmark_pytorch_fp16(
     Benchmark PyTorch CPU FP16 baseline using Hugging Face Transformers.
     """
     logger.info("Initializing PyTorch CPU FP16 benchmark for: %s", model_name_or_path)
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
     from threading import Thread
 
-    gc.collect()
-    start_rss = get_current_rss_mb()
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+    gc.collect()
+    get_current_rss_mb()
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name_or_path, trust_remote_code=True
+    )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -110,7 +112,9 @@ def benchmark_pytorch_fp16(
 
     logger.info("Executing %d measurement iterations...", num_runs)
     for run_idx in range(num_runs):
-        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+        streamer = TextIteratorStreamer(
+            tokenizer, skip_prompt=True, skip_special_tokens=True
+        )
         generation_kwargs = dict(
             **inputs,
             streamer=streamer,
@@ -139,8 +143,14 @@ def benchmark_pytorch_fp16(
 
         ttft_ms = ((first_token_time - t_start) * 1000.0) if first_token_time else 0.0
         total_time_sec = t_end - t_start
-        gen_time_sec = (t_end - first_token_time) if first_token_time else total_time_sec
-        decode_tps = (tokens_received - 1) / gen_time_sec if gen_time_sec > 0 and tokens_received > 1 else (tokens_received / total_time_sec)
+        gen_time_sec = (
+            (t_end - first_token_time) if first_token_time else total_time_sec
+        )
+        decode_tps = (
+            (tokens_received - 1) / gen_time_sec
+            if gen_time_sec > 0 and tokens_received > 1
+            else (tokens_received / total_time_sec)
+        )
 
         ttft_list.append(ttft_ms)
         tps_list.append(decode_tps)
@@ -154,9 +164,13 @@ def benchmark_pytorch_fp16(
     # Estimate model size on disk
     model_path_obj = Path(model_name_or_path)
     if model_path_obj.is_dir():
-        disk_size_mb = sum(f.stat().st_size for f in model_path_obj.rglob("*.safetensors")) / (1024 * 1024)
+        disk_size_mb = sum(
+            f.stat().st_size for f in model_path_obj.rglob("*.safetensors")
+        ) / (1024 * 1024)
         if disk_size_mb == 0:
-            disk_size_mb = sum(f.stat().st_size for f in model_path_obj.rglob("*.bin")) / (1024 * 1024)
+            disk_size_mb = sum(
+                f.stat().st_size for f in model_path_obj.rglob("*.bin")
+            ) / (1024 * 1024)
     else:
         disk_size_mb = 2950.0  # Approx 1.5B FP16 model size
 
@@ -188,7 +202,11 @@ def benchmark_gguf_llama_cpp(
     """
     Benchmark GGUF model variant (Q8_0 or Q4_K_M) using llama-cpp-python.
     """
-    logger.info("Initializing llama-cpp-python benchmark for %s at: %s", variant_name, model_path)
+    logger.info(
+        "Initializing llama-cpp-python benchmark for %s at: %s",
+        variant_name,
+        model_path,
+    )
     from llama_cpp import Llama
 
     path_obj = Path(model_path)
@@ -236,8 +254,14 @@ def benchmark_gguf_llama_cpp(
         t_end = time.perf_counter()
         ttft_ms = ((first_token_time - t_start) * 1000.0) if first_token_time else 0.0
         total_time_sec = t_end - t_start
-        gen_time_sec = (t_end - first_token_time) if first_token_time else total_time_sec
-        decode_tps = (tokens_received - 1) / gen_time_sec if gen_time_sec > 0 and tokens_received > 1 else (tokens_received / total_time_sec)
+        gen_time_sec = (
+            (t_end - first_token_time) if first_token_time else total_time_sec
+        )
+        decode_tps = (
+            (tokens_received - 1) / gen_time_sec
+            if gen_time_sec > 0 and tokens_received > 1
+            else (tokens_received / total_time_sec)
+        )
 
         ttft_list.append(ttft_ms)
         tps_list.append(decode_tps)
@@ -302,8 +326,6 @@ def generate_dry_run_benchmark() -> List[Dict[str, Any]]:
 def format_markdown_table(results: List[Dict[str, Any]]) -> str:
     """Format benchmark metrics into a high-visibility GitHub Flavored Markdown table."""
     baseline_rss = results[0]["peak_rss_mb"] if results else 1.0
-    baseline_disk = results[0]["disk_size_mb"] if results else 1.0
-
     lines = [
         "### 🚀 Edge LLM Inference & Quantization Benchmark Results",
         "",
@@ -319,7 +341,7 @@ def format_markdown_table(results: List[Dict[str, Any]]) -> str:
         v_name = item["variant"]
         disk_str = f"{item['disk_size_mb']:.1f} MB"
         rss_str = f"{item['peak_rss_mb']:.1f} MB"
-        
+
         rss_red = ((baseline_rss - item["peak_rss_mb"]) / baseline_rss) * 100.0
         rss_red_str = f"-{rss_red:.1f}%" if rss_red > 0 else "Baseline"
 
@@ -327,9 +349,15 @@ def format_markdown_table(results: List[Dict[str, Any]]) -> str:
         tps_str = f"{item['tokens_per_second']:.1f} tok/s"
 
         base_tps = results[0]["tokens_per_second"] if results else 1.0
-        speedup = f"{(item['tokens_per_second'] / base_tps):.2f}x" if base_tps > 0 else "1.00x"
+        speedup = (
+            f"{(item['tokens_per_second'] / base_tps):.2f}x"
+            if base_tps > 0
+            else "1.00x"
+        )
 
-        lines.append(f"| **{v_name}** | {disk_str} | {rss_str} | `{rss_red_str}` | {ttft_str} | **{tps_str}** | **{speedup}** |")
+        lines.append(
+            f"| **{v_name}** | {disk_str} | {rss_str} | `{rss_red_str}` | {ttft_str} | **{tps_str}** | **{speedup}** |"
+        )
 
     lines.append("")
     return "\n".join(lines)
@@ -363,7 +391,9 @@ def run_benchmark_suite(
         # 2. GGUF Q8_0
         if q8_path and Path(q8_path).is_file():
             try:
-                res_q8 = benchmark_gguf_llama_cpp(q8_path, "GGUF Q8_0 (8-bit)", prompt, n_threads=n_threads)
+                res_q8 = benchmark_gguf_llama_cpp(
+                    q8_path, "GGUF Q8_0 (8-bit)", prompt, n_threads=n_threads
+                )
                 results.append(res_q8)
             except Exception as e:
                 logger.warning("Could not execute GGUF Q8_0 benchmark: %s", e)
@@ -371,14 +401,18 @@ def run_benchmark_suite(
         # 3. GGUF Q4_K_M
         if q4_path and Path(q4_path).is_file():
             try:
-                res_q4 = benchmark_gguf_llama_cpp(q4_path, "GGUF Q4_K_M (4-bit Edge)", prompt, n_threads=n_threads)
+                res_q4 = benchmark_gguf_llama_cpp(
+                    q4_path, "GGUF Q4_K_M (4-bit Edge)", prompt, n_threads=n_threads
+                )
                 results.append(res_q4)
             except Exception as e:
                 logger.warning("Could not execute GGUF Q4_K_M benchmark: %s", e)
 
         # Fallback to simulation if none executed
         if not results:
-            logger.warning("Specified model paths were not found. Falling back to dry-run metrics.")
+            logger.warning(
+                "Specified model paths were not found. Falling back to dry-run metrics."
+            )
             results = generate_dry_run_benchmark()
 
     # Print Markdown table
@@ -410,13 +444,23 @@ def run_benchmark_suite(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Performance Benchmarking Harness across FP16, Q8_0, and Q4_K_M.")
-    parser.add_argument("--q8-model", type=str, default="models_gguf/qwen2.5-1.5b-telemetry-q8_0.gguf")
-    parser.add_argument("--q4-model", type=str, default="models_gguf/qwen2.5-1.5b-telemetry-q4_k_m.gguf")
+    parser = argparse.ArgumentParser(
+        description="Performance Benchmarking Harness across FP16, Q8_0, and Q4_K_M."
+    )
+    parser.add_argument(
+        "--q8-model", type=str, default="models_gguf/qwen2.5-1.5b-telemetry-q8_0.gguf"
+    )
+    parser.add_argument(
+        "--q4-model", type=str, default="models_gguf/qwen2.5-1.5b-telemetry-q4_k_m.gguf"
+    )
     parser.add_argument("--hf-model", type=str, default="checkpoints/merged_model")
     parser.add_argument("--output-json", type=str, default="benchmark_results.json")
     parser.add_argument("--threads", type=int, default=4)
-    parser.add_argument("--dry-run", action="store_true", help="Run simulated benchmark without loading model weights.")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run simulated benchmark without loading model weights.",
+    )
     args = parser.parse_args()
 
     run_benchmark_suite(
@@ -431,4 +475,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

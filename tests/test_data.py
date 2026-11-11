@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
 
 import pytest
 
@@ -16,7 +15,6 @@ from src.data_loader import (
     generate_synthetic_telemetry,
     load_raw_dataset,
 )
-
 
 SAMPLE_DATA_PATH = Path("data/sample_logs.jsonl")
 
@@ -37,9 +35,15 @@ def test_sample_logs_schema() -> None:
         assert "input" in row, f"Row {idx} missing 'input'."
         assert "output" in row, f"Row {idx} missing 'output'."
 
-        assert isinstance(row["instruction"], str) and row["instruction"].strip(), f"Row {idx} invalid instruction."
-        assert isinstance(row["input"], str) and row["input"].strip(), f"Row {idx} invalid input."
-        assert isinstance(row["output"], str) and row["output"].strip(), f"Row {idx} invalid output."
+        assert (
+            isinstance(row["instruction"], str) and row["instruction"].strip()
+        ), f"Row {idx} invalid instruction."
+        assert (
+            isinstance(row["input"], str) and row["input"].strip()
+        ), f"Row {idx} invalid input."
+        assert (
+            isinstance(row["output"], str) and row["output"].strip()
+        ), f"Row {idx} invalid output."
 
         assert row["instruction"] == INSTRUCTION_TEXT
 
@@ -62,7 +66,9 @@ def test_sample_logs_structured_json_output() -> None:
 
         assert isinstance(parsed["root_cause"], str) and len(parsed["root_cause"]) > 5
         assert isinstance(parsed["remediation"], str) and len(parsed["remediation"]) > 5
-        assert parsed["severity"] in allowed_severities, f"Invalid severity '{parsed['severity']}' at row {idx}."
+        assert (
+            parsed["severity"] in allowed_severities
+        ), f"Invalid severity '{parsed['severity']}' at row {idx}."
 
 
 def test_synthetic_generator_creates_valid_dataset(tmp_path: Path) -> None:
@@ -70,7 +76,9 @@ def test_synthetic_generator_creates_valid_dataset(tmp_path: Path) -> None:
     temp_file = tmp_path / "temp_telemetry.jsonl"
     num_samples = 24
 
-    generated = generate_synthetic_telemetry(num_samples=num_samples, output_path=str(temp_file))
+    generated = generate_synthetic_telemetry(
+        num_samples=num_samples, output_path=str(temp_file)
+    )
 
     assert len(generated) == num_samples
     assert temp_file.is_file()
@@ -90,7 +98,9 @@ def test_format_chatml_prompt_structure() -> None:
     """Test ChatML prompt formatting for training and inference."""
     instruction = "Analyze the error."
     error_trace = "kernel: Out of memory"
-    target_output = '{"root_cause": "OOM", "severity": "CRITICAL", "remediation": "Scale RAM"}'
+    target_output = (
+        '{"root_cause": "OOM", "severity": "CRITICAL", "remediation": "Scale RAM"}'
+    )
 
     # Prompt with target output (training format)
     full_prompt = format_chatml_prompt(instruction, error_trace, target_output)
@@ -119,5 +129,6 @@ def test_tokenization_length_bounds() -> None:
             max_estimated_tokens = estimated_tokens
 
     # Verify all samples easily fit within 512 max length
-    assert max_estimated_tokens < 512, f"Sample exceeded max_length token estimate: {max_estimated_tokens}"
-
+    assert (
+        max_estimated_tokens < 512
+    ), f"Sample exceeded max_length token estimate: {max_estimated_tokens}"

@@ -17,7 +17,7 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -28,7 +28,9 @@ logging.basicConfig(
 logger = logging.getLogger("edge_quantize")
 
 GGUF_MAGIC = b"GGUF"
-LLAMA_CPP_CONVERT_URL = "https://raw.githubusercontent.com/ggerganov/llama.cpp/master/convert_hf_to_gguf.py"
+LLAMA_CPP_CONVERT_URL = (
+    "https://raw.githubusercontent.com/ggerganov/llama.cpp/master/convert_hf_to_gguf.py"
+)
 
 
 def load_quant_config(config_path: str) -> Dict[str, Any]:
@@ -59,7 +61,10 @@ def ensure_conversion_script(cache_dir: Path) -> Path:
     # 2. Check if llama.cpp repository is cloned locally
     llama_cpp_paths = list(Path(".").glob("**/convert_hf_to_gguf.py"))
     if llama_cpp_paths:
-        logger.info("Discovered llama.cpp conversion script at: %s", llama_cpp_paths[0].resolve())
+        logger.info(
+            "Discovered llama.cpp conversion script at: %s",
+            llama_cpp_paths[0].resolve(),
+        )
         return llama_cpp_paths[0].resolve()
 
     # 3. Download from official repository
@@ -68,7 +73,9 @@ def ensure_conversion_script(cache_dir: Path) -> Path:
     logger.info("Downloading convert_hf_to_gguf.py from %s...", LLAMA_CPP_CONVERT_URL)
     try:
         urllib.request.urlretrieve(LLAMA_CPP_CONVERT_URL, target_script)
-        logger.info("Successfully downloaded conversion script to %s", target_script.resolve())
+        logger.info(
+            "Successfully downloaded conversion script to %s", target_script.resolve()
+        )
         return target_script.resolve()
     except Exception as exc:
         logger.error("Failed to download convert_hf_to_gguf.py: %s", exc)
@@ -123,11 +130,15 @@ def verify_gguf_file(file_path: Path) -> Dict[str, Any]:
     with open(file_path, "rb") as f:
         header = f.read(24)
         if len(header) < 24:
-            raise ValueError(f"File too small to contain valid GGUF header ({len(header)} bytes)")
+            raise ValueError(
+                f"File too small to contain valid GGUF header ({len(header)} bytes)"
+            )
 
         magic = header[:4]
         if magic != GGUF_MAGIC:
-            raise ValueError(f"Invalid GGUF magic header. Expected {GGUF_MAGIC!r}, got {magic!r}")
+            raise ValueError(
+                f"Invalid GGUF magic header. Expected {GGUF_MAGIC!r}, got {magic!r}"
+            )
 
         version, tensor_count, kv_count = struct.unpack("<IQQ", header[4:24])
 
@@ -224,7 +235,9 @@ def quantize_gguf(
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
             logger.error("Quantization failed for %s:\n%s", quant_type, res.stderr)
-            raise RuntimeError(f"Quantization to {quant_type} failed: {res.stderr.strip()}")
+            raise RuntimeError(
+                f"Quantization to {quant_type} failed: {res.stderr.strip()}"
+            )
     else:
         # Fallback to python llama-cpp-python or gguf quantize module
         logger.warning(
@@ -245,7 +258,9 @@ def quantize_gguf(
                 if res_code != 0:
                     raise RuntimeError(f"llama_model_quantize returned code {res_code}")
             else:
-                raise AttributeError("llama_cpp does not expose direct quantize bindings in this build.")
+                raise AttributeError(
+                    "llama_cpp does not expose direct quantize bindings in this build."
+                )
         except Exception as exc:
             logger.warning(
                 "Native quantization binary and llama_cpp bindings unavailable: %s. "
@@ -261,7 +276,9 @@ def quantize_gguf(
     return out_gguf_path
 
 
-def print_compression_summary(results: List[Dict[str, Any]], baseline_size_mb: Optional[float] = None) -> None:
+def print_compression_summary(
+    results: List[Dict[str, Any]], baseline_size_mb: Optional[float] = None
+) -> None:
     """Print an ASCII summary table detailing binary size reductions and compression ratios."""
     print("\n" + "=" * 80)
     print(f"{'EDGE LLM QUANTIZATION REPORT':^80}")
@@ -282,12 +299,16 @@ def print_compression_summary(results: List[Dict[str, Any]], baseline_size_mb: O
         if len(fname) > 34:
             fname = fname[:31] + "..."
         status = "PASSED" if item.get("valid", False) else "FAILED"
-        print(f"{fmt:<10} | {fname:<34} | {size_mb:>10.2f} | {reduction:>10} | {status:<8}")
+        print(
+            f"{fmt:<10} | {fname:<34} | {size_mb:>10.2f} | {reduction:>10} | {status:<8}"
+        )
 
     print("=" * 80 + "\n")
 
 
-def run_pipeline(config: Dict[str, Any], model_dir_override: Optional[str] = None) -> List[Dict[str, Any]]:
+def run_pipeline(
+    config: Dict[str, Any], model_dir_override: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """
     Run complete conversion and quantization pipeline according to configuration.
 
@@ -303,7 +324,10 @@ def run_pipeline(config: Dict[str, Any], model_dir_override: Optional[str] = Non
     exec_cfg = config.get("execution", {})
     targets_cfg = config.get("quantization_targets", [])
 
-    hf_model_dir = Path(model_dir_override or source_cfg.get("merged_model_dir", "./checkpoints/merged_model"))
+    hf_model_dir = Path(
+        model_dir_override
+        or source_cfg.get("merged_model_dir", "./checkpoints/merged_model")
+    )
     out_dir = Path(dest_cfg.get("output_dir", "./models_gguf"))
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -352,7 +376,9 @@ def run_pipeline(config: Dict[str, Any], model_dir_override: Optional[str] = Non
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="End-to-End GGUF Conversion and Quantization Pipeline.")
+    parser = argparse.ArgumentParser(
+        description="End-to-End GGUF Conversion and Quantization Pipeline."
+    )
     parser.add_argument(
         "--config",
         type=str,
@@ -384,4 +410,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

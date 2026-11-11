@@ -14,16 +14,14 @@ import json
 import logging
 import os
 import re
-import sys
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Literal, Optional
 
 import psutil
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 logging.basicConfig(
@@ -52,13 +50,26 @@ SYSTEM_PROMPT = (
 # Pydantic Schemas
 # ==============================================================================
 
+
 class HealthResponse(BaseModel):
-    status: Literal["healthy", "degraded", "initializing"] = Field(..., description="Service health state")
-    model_loaded: bool = Field(..., description="Whether LLM inference engine is loaded into memory")
-    model_path: Optional[str] = Field(None, description="Path to active GGUF model binary")
-    model_format: str = Field(..., description="Model quantization format (e.g., Q4_K_M, Q8_0, MOCK)")
-    memory_rss_mb: float = Field(..., description="Current process resident set size in MB")
-    memory_percent: float = Field(..., description="Process memory percentage of total system RAM")
+    status: Literal["healthy", "degraded", "initializing"] = Field(
+        ..., description="Service health state"
+    )
+    model_loaded: bool = Field(
+        ..., description="Whether LLM inference engine is loaded into memory"
+    )
+    model_path: Optional[str] = Field(
+        None, description="Path to active GGUF model binary"
+    )
+    model_format: str = Field(
+        ..., description="Model quantization format (e.g., Q4_K_M, Q8_0, MOCK)"
+    )
+    memory_rss_mb: float = Field(
+        ..., description="Current process resident set size in MB"
+    )
+    memory_percent: float = Field(
+        ..., description="Process memory percentage of total system RAM"
+    )
     uptime_seconds: float = Field(..., description="Service uptime in seconds")
     threads: int = Field(..., description="Configured inference CPU threads")
 
@@ -68,37 +79,61 @@ class TelemetryAnalysisRequest(BaseModel):
         ...,
         min_length=10,
         description="Raw multi-line hardware, kernel, or system error trace",
-        examples=["kernel: [1042.12] Out of memory: Killed process 38412 (python3) total-vm:67108864kB, anon-rss:62914560kB"],
+        examples=[
+            "kernel: [1042.12] Out of memory: Killed process 38412 (python3) total-vm:67108864kB, anon-rss:62914560kB"
+        ],
     )
     system_context: Optional[str] = Field(
         None,
         description="Optional hardware topology or workload context",
         examples=["NVIDIA Jetson Orin 64GB edge cluster"],
     )
-    temperature: float = Field(0.1, ge=0.0, le=2.0, description="Sampling temperature (low for deterministic analysis)")
-    max_tokens: int = Field(256, ge=16, le=1024, description="Maximum tokens to generate")
+    temperature: float = Field(
+        0.1,
+        ge=0.0,
+        le=2.0,
+        description="Sampling temperature (low for deterministic analysis)",
+    )
+    max_tokens: int = Field(
+        256, ge=16, le=1024, description="Maximum tokens to generate"
+    )
 
 
 class InferenceMetrics(BaseModel):
     ttft_ms: float = Field(..., description="Time to First Token in milliseconds")
-    total_latency_ms: float = Field(..., description="Total inference time in milliseconds")
+    total_latency_ms: float = Field(
+        ..., description="Total inference time in milliseconds"
+    )
     prompt_tokens: int = Field(..., description="Prompt token count")
     completion_tokens: int = Field(..., description="Generated token count")
-    tokens_per_second: float = Field(..., description="Decode throughput in tokens/second")
+    tokens_per_second: float = Field(
+        ..., description="Decode throughput in tokens/second"
+    )
     peak_rss_mb: float = Field(..., description="Peak RSS memory consumption in MB")
 
 
 class TelemetryAnalysisResponse(BaseModel):
-    root_cause: str = Field(..., description="Identified root cause of the hardware/system failure")
-    severity: Literal["CRITICAL", "HIGH", "MEDIUM"] = Field(..., description="Assessed impact severity")
-    remediation: str = Field(..., description="Actionable immediate remediation instruction")
-    raw_response: Optional[str] = Field(None, description="Raw unparsed model output (for audits)")
-    metrics: InferenceMetrics = Field(..., description="Granular latency and throughput metrics")
+    root_cause: str = Field(
+        ..., description="Identified root cause of the hardware/system failure"
+    )
+    severity: Literal["CRITICAL", "HIGH", "MEDIUM"] = Field(
+        ..., description="Assessed impact severity"
+    )
+    remediation: str = Field(
+        ..., description="Actionable immediate remediation instruction"
+    )
+    raw_response: Optional[str] = Field(
+        None, description="Raw unparsed model output (for audits)"
+    )
+    metrics: InferenceMetrics = Field(
+        ..., description="Granular latency and throughput metrics"
+    )
 
 
 # ==============================================================================
 # Model Initialization & Inference Utilities
 # ==============================================================================
+
 
 def detect_model_format(path_str: str) -> str:
     """Infer quantization format from file name or path."""
@@ -122,7 +157,12 @@ def init_llm(model_path: Optional[str], n_threads: int = 4, n_ctx: int = 1024) -
         try:
             from llama_cpp import Llama
 
-            logger.info("Loading GGUF model from: %s (threads=%d, ctx=%d)", model_path, n_threads, n_ctx)
+            logger.info(
+                "Loading GGUF model from: %s (threads=%d, ctx=%d)",
+                model_path,
+                n_threads,
+                n_ctx,
+            )
             GLOBAL_LLM = Llama(
                 model_path=str(Path(model_path).resolve()),
                 n_threads=n_threads,
@@ -230,10 +270,13 @@ def execute_fallback_diagnostic(log_trace: str) -> Dict[str, Any]:
 # FastAPI Application Lifespan & Instance
 # ==============================================================================
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Handle application startup and shutdown lifecycle."""
-    model_path = os.getenv("MODEL_PATH", "models_gguf/qwen2.5-1.5b-telemetry-q4_k_m.gguf")
+    model_path = os.getenv(
+        "MODEL_PATH", "models_gguf/qwen2.5-1.5b-telemetry-q4_k_m.gguf"
+    )
     n_threads = int(os.getenv("N_THREADS", str(min(4, os.cpu_count() or 1))))
     n_ctx = int(os.getenv("N_CTX", "1024"))
 
@@ -263,6 +306,7 @@ app.add_middleware(
 # Endpoints
 # ==============================================================================
 
+
 @app.get("/health", response_model=HealthResponse, tags=["Monitoring"])
 async def get_health() -> HealthResponse:
     """
@@ -276,8 +320,14 @@ async def get_health() -> HealthResponse:
     threads = int(os.getenv("N_THREADS", str(min(4, os.cpu_count() or 1))))
 
     return HealthResponse(
-        status="healthy" if GLOBAL_LLM is not None or LOADED_MODEL_FORMAT == "MOCK_DIAGNOSTIC_ENGINE" else "degraded",
-        model_loaded=(GLOBAL_LLM is not None or LOADED_MODEL_FORMAT == "MOCK_DIAGNOSTIC_ENGINE"),
+        status=(
+            "healthy"
+            if GLOBAL_LLM is not None or LOADED_MODEL_FORMAT == "MOCK_DIAGNOSTIC_ENGINE"
+            else "degraded"
+        ),
+        model_loaded=(
+            GLOBAL_LLM is not None or LOADED_MODEL_FORMAT == "MOCK_DIAGNOSTIC_ENGINE"
+        ),
         model_path=LOADED_MODEL_PATH,
         model_format=LOADED_MODEL_FORMAT,
         memory_rss_mb=rss_mb,
@@ -287,8 +337,14 @@ async def get_health() -> HealthResponse:
     )
 
 
-@app.post("/v1/telemetry/analyze", response_model=TelemetryAnalysisResponse, tags=["Inference"])
-async def analyze_telemetry(payload: TelemetryAnalysisRequest) -> TelemetryAnalysisResponse:
+@app.post(
+    "/v1/telemetry/analyze",
+    response_model=TelemetryAnalysisResponse,
+    tags=["Inference"],
+)
+async def analyze_telemetry(
+    payload: TelemetryAnalysisRequest,
+) -> TelemetryAnalysisResponse:
     """
     Analyze raw multi-line hardware/system error traces and return structured diagnostic JSON.
     """
@@ -298,9 +354,11 @@ async def analyze_telemetry(payload: TelemetryAnalysisRequest) -> TelemetryAnaly
             detail="The 'log_trace' field cannot be empty or solely whitespace.",
         )
 
-    user_content = f"Instruction: Analyze the system error trace, diagnose the root failure cause, and recommend immediate remediation.\n\n"
+    user_content = "Instruction: Analyze the system error trace, diagnose the root failure cause, and recommend immediate remediation.\n\n"
     if payload.system_context:
-        user_content += f"[SYSTEM TOPOLOGY CONTEXT]:\n{payload.system_context.strip()}\n\n"
+        user_content += (
+            f"[SYSTEM TOPOLOGY CONTEXT]:\n{payload.system_context.strip()}\n\n"
+        )
     user_content += f"[SYSTEM ERROR TRACE]:\n{payload.log_trace.strip()}"
 
     prompt = (
@@ -338,15 +396,28 @@ async def analyze_telemetry(payload: TelemetryAnalysisRequest) -> TelemetryAnaly
                         chunks.append(choice.get("text", ""))
                     return chunks, first_tok_time, tok_count
 
-                chunks, first_token_perf, token_count = await loop.run_in_executor(None, _run_inference)
+                chunks, first_token_perf, token_count = await loop.run_in_executor(
+                    None, _run_inference
+                )
                 t_end = time.perf_counter()
 
-                ttft_ms = round(((first_token_perf - t_start) * 1000.0) if first_token_perf > 0 else 0.0, 2)
+                ttft_ms = round(
+                    (
+                        ((first_token_perf - t_start) * 1000.0)
+                        if first_token_perf > 0
+                        else 0.0
+                    ),
+                    2,
+                )
                 total_latency_ms = round((t_end - t_start) * 1000.0, 2)
                 raw_response = "".join(chunks)
                 parsed = extract_structured_json(raw_response)
 
-                gen_sec = (t_end - first_token_perf) if first_token_perf > 0 else (t_end - t_start)
+                gen_sec = (
+                    (t_end - first_token_perf)
+                    if first_token_perf > 0
+                    else (t_end - t_start)
+                )
                 tps = round(token_count / gen_sec, 2) if gen_sec > 0 else 0.0
                 prompt_tokens = len(prompt.split())
 
@@ -395,11 +466,16 @@ async def analyze_telemetry(payload: TelemetryAnalysisRequest) -> TelemetryAnaly
 # CLI Entrypoint
 # ==============================================================================
 
+
 def main() -> None:
     import uvicorn
 
     parser = argparse.ArgumentParser(description="Start the Edge LLM Serving API.")
-    parser.add_argument("--model-path", type=str, default="models_gguf/qwen2.5-1.5b-telemetry-q4_k_m.gguf")
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        default="models_gguf/qwen2.5-1.5b-telemetry-q4_k_m.gguf",
+    )
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--threads", type=int, default=4)

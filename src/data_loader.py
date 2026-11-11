@@ -11,12 +11,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
@@ -27,18 +28,31 @@ SYSTEM_PROMPT = (
     '{"root_cause": string, "severity": "CRITICAL"|"HIGH"|"MEDIUM", "remediation": string}.'
 )
 
-INSTRUCTION_TEXT = (
-    "Analyze the system error trace, diagnose the root failure cause, and recommend immediate remediation."
-)
+INSTRUCTION_TEXT = "Analyze the system error trace, diagnose the root failure cause, and recommend immediate remediation."
 
 
 def _generate_oom_sample(idx: int) -> Dict[str, str]:
     pid = random.randint(10000, 65535)
     total_vm_mb = random.randint(32768, 131072)
     rss_mb = int(total_vm_mb * random.uniform(0.85, 0.98))
-    proc_name = random.choice(["python3", "ray::worker", "vllm_engine", "torchrun", "mysqld", "docker-containerd"])
-    cgroup = random.choice(["/kubepods/burstable/pod12a8f", "/system.slice/ml-training.service", "/user.slice/job-992"])
-    
+    proc_name = random.choice(
+        [
+            "python3",
+            "ray::worker",
+            "vllm_engine",
+            "torchrun",
+            "mysqld",
+            "docker-containerd",
+        ]
+    )
+    cgroup = random.choice(
+        [
+            "/kubepods/burstable/pod12a8f",
+            "/system.slice/ml-training.service",
+            "/user.slice/job-992",
+        ]
+    )
+
     trace = (
         f"[Hardware Monitor] Node: edge-worker-0{random.randint(1, 9)} | Kernel: 5.15.0-89-generic\n"
         f"kernel: [{random.randint(10000, 99999)}.{random.randint(100, 999)}] Out of memory: Killed process {pid} ({proc_name}) "
@@ -53,14 +67,25 @@ def _generate_oom_sample(idx: int) -> Dict[str, str]:
         "severity": "CRITICAL",
         "remediation": f"Increase the memory limit in {cgroup}, implement dynamic batch sizing/gradient checkpointing to cap peak RSS under {rss_mb // 1024}GB, and enable swap or zram fallbacks.",
     }
-    return {"instruction": INSTRUCTION_TEXT, "input": trace, "output": json.dumps(output)}
+    return {
+        "instruction": INSTRUCTION_TEXT,
+        "input": trace,
+        "output": json.dumps(output),
+    }
 
 
 def _generate_kernel_panic_sample(idx: int) -> Dict[str, str]:
     cpu_id = random.randint(0, 31)
     rip_addr = f"0x{random.randint(0x100000, 0xFFFFFF):08x}"
-    func = random.choice(["native_queued_spin_lock_slowpath", "handle_mm_fault", "do_page_fault", "kmem_cache_alloc"])
-    
+    func = random.choice(
+        [
+            "native_queued_spin_lock_slowpath",
+            "handle_mm_fault",
+            "do_page_fault",
+            "kmem_cache_alloc",
+        ]
+    )
+
     trace = (
         f"[Syslog] System Exception Alert - Host: edge-gateway-x86-{random.randint(1, 5)}\n"
         f"kernel: [{random.randint(1000, 8999)}.{random.randint(10, 99)}] BUG: unable to handle page fault for address {rip_addr}\n"
@@ -76,12 +101,26 @@ def _generate_kernel_panic_sample(idx: int) -> Dict[str, str]:
         "severity": "CRITICAL",
         "remediation": "Reboot the host system immediately into rescue mode, inspect kernel crash dump via crash/kdump at the fault RIP address, and update out-of-tree kernel modules.",
     }
-    return {"instruction": INSTRUCTION_TEXT, "input": trace, "output": json.dumps(output)}
+    return {
+        "instruction": INSTRUCTION_TEXT,
+        "input": trace,
+        "output": json.dumps(output),
+    }
 
 
 def _generate_segfault_sample(idx: int) -> Dict[str, str]:
-    lib = random.choice(["libtorch_cpu.so", "libonnxruntime.so.1.16", "libopenblas.so.0", "libcuda.so.1", "libggml.so"])
-    app = random.choice(["telemetry_agent", "inference_server", "stream_processor", "quant_pipeline"])
+    lib = random.choice(
+        [
+            "libtorch_cpu.so",
+            "libonnxruntime.so.1.16",
+            "libopenblas.so.0",
+            "libcuda.so.1",
+            "libggml.so",
+        ]
+    )
+    app = random.choice(
+        ["telemetry_agent", "inference_server", "stream_processor", "quant_pipeline"]
+    )
     addr = f"{random.randint(0x10, 0x7FFF00):016x}"
     ip = f"{random.randint(0x7F000000, 0x7FFFFFFF):016x}"
 
@@ -99,14 +138,16 @@ def _generate_segfault_sample(idx: int) -> Dict[str, str]:
         "severity": "HIGH",
         "remediation": f"Inspect core dump using 'gdb {app} core', check memory bounds around '{lib}' allocations, and recompile native bindings with AddressSanitizer (ASan).",
     }
-    return {"instruction": INSTRUCTION_TEXT, "input": trace, "output": json.dumps(output)}
+    return {
+        "instruction": INSTRUCTION_TEXT,
+        "input": trace,
+        "output": json.dumps(output),
+    }
 
 
 def _generate_nvme_io_sample(idx: int) -> Dict[str, str]:
     device = f"nvme{random.randint(0, 3)}n1"
     sector = random.randint(10000000, 900000000)
-    timeout_sec = random.choice([30, 60, 120])
-
     trace = (
         f"[Storage Subsystem Telemetry] Controller NVMe Bus 0000:03:00.0\n"
         f"kernel: [{random.randint(5000, 40000)}.{random.randint(10, 99)}] nvme {device}: I/O {random.randint(100, 999)} QID {random.randint(1, 8)} timeout, aborting\n"
@@ -121,12 +162,23 @@ def _generate_nvme_io_sample(idx: int) -> Dict[str, str]:
         "severity": "CRITICAL",
         "remediation": f"Immediately cordon the host, unmount the filesystem on '/dev/{device}' to prevent corruption, trigger NVMe SMART health self-test, and replace the failing NVMe SSD drive.",
     }
-    return {"instruction": INSTRUCTION_TEXT, "input": trace, "output": json.dumps(output)}
+    return {
+        "instruction": INSTRUCTION_TEXT,
+        "input": trace,
+        "output": json.dumps(output),
+    }
 
 
 def _generate_pcie_aer_sample(idx: int) -> Dict[str, str]:
     bus_id = f"0000:{random.randint(1, 8):02x}:00.0"
-    dev_name = random.choice(["NVIDIA RTX 4000 Ada", "Coral Edge TPU", "Intel I225-V Ethernet", "Hailo-8 AI Accelerator"])
+    dev_name = random.choice(
+        [
+            "NVIDIA RTX 4000 Ada",
+            "Coral Edge TPU",
+            "Intel I225-V Ethernet",
+            "Hailo-8 AI Accelerator",
+        ]
+    )
 
     trace = (
         f"[PCIe Subsystem Diagnostic] Hardware Bus Topology Monitor\n"
@@ -143,7 +195,11 @@ def _generate_pcie_aer_sample(idx: int) -> Dict[str, str]:
         "severity": "CRITICAL",
         "remediation": f"Power-cycle the edge appliance, inspect physical seating/power cables of '{dev_name}', clean PCIe gold contacts, or downgrade PCIe link speed from Gen4 to Gen3 in BIOS for signal stability.",
     }
-    return {"instruction": INSTRUCTION_TEXT, "input": trace, "output": json.dumps(output)}
+    return {
+        "instruction": INSTRUCTION_TEXT,
+        "input": trace,
+        "output": json.dumps(output),
+    }
 
 
 def _generate_gpu_ecc_sample(idx: int) -> Dict[str, str]:
@@ -165,7 +221,11 @@ def _generate_gpu_ecc_sample(idx: int) -> Dict[str, str]:
         "severity": "CRITICAL",
         "remediation": f"Drain workload from GPU {gpu_id}, inspect cooling fan integrity and thermal paste, check chassis airflow, and replace the GPU board if SRAM ECC persists.",
     }
-    return {"instruction": INSTRUCTION_TEXT, "input": trace, "output": json.dumps(output)}
+    return {
+        "instruction": INSTRUCTION_TEXT,
+        "input": trace,
+        "output": json.dumps(output),
+    }
 
 
 def _generate_cpu_lockup_sample(idx: int) -> Dict[str, str]:
@@ -190,7 +250,11 @@ def _generate_cpu_lockup_sample(idx: int) -> Dict[str, str]:
         "severity": "HIGH",
         "remediation": f"Tune sysctl 'kernel.watchdog_thresh=30', inspect CPU frequency scaling (cpufreq governor), and isolate CPU#{cpu} using taskset/cgroups for real-time threads.",
     }
-    return {"instruction": INSTRUCTION_TEXT, "input": trace, "output": json.dumps(output)}
+    return {
+        "instruction": INSTRUCTION_TEXT,
+        "input": trace,
+        "output": json.dumps(output),
+    }
 
 
 def _generate_nic_exhaustion_sample(idx: int) -> Dict[str, str]:
@@ -211,7 +275,11 @@ def _generate_nic_exhaustion_sample(idx: int) -> Dict[str, str]:
         "severity": "MEDIUM",
         "remediation": f"Increase NIC ring buffer descriptors via 'ethtool -G {interface} rx 4096', increase 'sysctl -w net.core.netdev_max_backlog=10000', and enable RPS/RFS.",
     }
-    return {"instruction": INSTRUCTION_TEXT, "input": trace, "output": json.dumps(output)}
+    return {
+        "instruction": INSTRUCTION_TEXT,
+        "input": trace,
+        "output": json.dumps(output),
+    }
 
 
 GENERATORS = [
@@ -226,7 +294,9 @@ GENERATORS = [
 ]
 
 
-def generate_synthetic_telemetry(num_samples: int = 100, output_path: str = "data/sample_logs.jsonl") -> List[Dict[str, str]]:
+def generate_synthetic_telemetry(
+    num_samples: int = 100, output_path: str = "data/sample_logs.jsonl"
+) -> List[Dict[str, str]]:
     """
     Generate diverse, realistic hardware and system error logs for instruction tuning.
 
@@ -255,11 +325,17 @@ def generate_synthetic_telemetry(num_samples: int = 100, output_path: str = "dat
         for item in samples:
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
-    logger.info("Successfully generated %d synthetic telemetry logs at: %s", len(samples), out_file.resolve())
+    logger.info(
+        "Successfully generated %d synthetic telemetry logs at: %s",
+        len(samples),
+        out_file.resolve(),
+    )
     return samples
 
 
-def format_chatml_prompt(instruction: str, input_text: str, output_text: Optional[str] = None) -> str:
+def format_chatml_prompt(
+    instruction: str, input_text: str, output_text: Optional[str] = None
+) -> str:
     """
     Format a single instruction-tuning sample into standard ChatML format.
 
@@ -294,7 +370,9 @@ def load_raw_dataset(data_path: str) -> List[Dict[str, str]]:
     """
     path = Path(data_path)
     if not path.is_file():
-        raise FileNotFoundError(f"Telemetry dataset file not found at: {path.resolve()}")
+        raise FileNotFoundError(
+            f"Telemetry dataset file not found at: {path.resolve()}"
+        )
 
     records = []
     with open(path, "r", encoding="utf-8") as f:
@@ -359,7 +437,14 @@ def prepare_hf_dataset(
                 input_text=r["input"],
                 output_text=r["output"],
             )
-            formatted.append({"text": text, "instruction": r["instruction"], "input": r["input"], "output": r["output"]})
+            formatted.append(
+                {
+                    "text": text,
+                    "instruction": r["instruction"],
+                    "input": r["input"],
+                    "output": r["output"],
+                }
+            )
         return formatted
 
     train_formatted = _format_records(train_raw)
@@ -372,6 +457,7 @@ def prepare_hf_dataset(
         eval_ds = Dataset.from_list(eval_formatted)
 
         if tokenizer is not None:
+
             def _tokenize_fn(batch: Dict[str, List[str]]) -> Dict[str, Any]:
                 tokenized = tokenizer(
                     batch["text"],
@@ -383,23 +469,44 @@ def prepare_hf_dataset(
                 tokenized["labels"] = list(tokenized["input_ids"])
                 return tokenized
 
-            train_ds = train_ds.map(_tokenize_fn, batched=True, remove_columns=["text", "instruction", "input", "output"])
-            eval_ds = eval_ds.map(_tokenize_fn, batched=True, remove_columns=["text", "instruction", "input", "output"])
+            train_ds = train_ds.map(
+                _tokenize_fn,
+                batched=True,
+                remove_columns=["text", "instruction", "input", "output"],
+            )
+            eval_ds = eval_ds.map(
+                _tokenize_fn,
+                batched=True,
+                remove_columns=["text", "instruction", "input", "output"],
+            )
 
         return train_ds, eval_ds
 
     except ImportError:
-        logger.warning("Hugging Face 'datasets' library not installed. Returning raw split lists.")
+        logger.warning(
+            "Hugging Face 'datasets' library not installed. Returning raw split lists."
+        )
         return train_formatted, eval_formatted
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate synthetic hardware telemetry data and inspect format.")
-    parser.add_argument("--num-samples", type=int, default=100, help="Number of telemetry samples to generate (default: 100).")
-    parser.add_argument("--output", type=str, default="data/sample_logs.jsonl", help="Output file path.")
+    parser = argparse.ArgumentParser(
+        description="Generate synthetic hardware telemetry data and inspect format."
+    )
+    parser.add_argument(
+        "--num-samples",
+        type=int,
+        default=100,
+        help="Number of telemetry samples to generate (default: 100).",
+    )
+    parser.add_argument(
+        "--output", type=str, default="data/sample_logs.jsonl", help="Output file path."
+    )
     args = parser.parse_args()
 
-    samples = generate_synthetic_telemetry(num_samples=args.num_samples, output_path=args.output)
+    samples = generate_synthetic_telemetry(
+        num_samples=args.num_samples, output_path=args.output
+    )
     print(f"Generated {len(samples)} samples. Inspecting sample 0:")
     print("--- CHATML PROMPT FORMAT ---")
     sample_chatml = format_chatml_prompt(
@@ -412,4 +519,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

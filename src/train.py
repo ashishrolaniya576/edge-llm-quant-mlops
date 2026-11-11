@@ -10,8 +10,6 @@ from __future__ import annotations
 import argparse
 import gc
 import logging
-import os
-import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -73,7 +71,9 @@ def load_yaml_config(config_path: str) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def build_quantization_config(use_cuda: bool, quant_cfg: Dict[str, Any]) -> Optional[Any]:
+def build_quantization_config(
+    use_cuda: bool, quant_cfg: Dict[str, Any]
+) -> Optional[Any]:
     """Configure bitsandbytes 4-bit NormalFloat quantization when GPU is available."""
     if not use_cuda:
         logger.warning(
@@ -86,7 +86,11 @@ def build_quantization_config(use_cuda: bool, quant_cfg: Dict[str, Any]) -> Opti
         from transformers import BitsAndBytesConfig
 
         compute_dtype_str = quant_cfg.get("bnb_4bit_compute_dtype", "bfloat16")
-        compute_dtype = torch.bfloat16 if compute_dtype_str == "bfloat16" and torch.cuda.is_bf16_supported() else torch.float16
+        compute_dtype = (
+            torch.bfloat16
+            if compute_dtype_str == "bfloat16" and torch.cuda.is_bf16_supported()
+            else torch.float16
+        )
 
         return BitsAndBytesConfig(
             load_in_4bit=quant_cfg.get("load_in_4bit", True),
@@ -95,11 +99,15 @@ def build_quantization_config(use_cuda: bool, quant_cfg: Dict[str, Any]) -> Opti
             bnb_4bit_compute_dtype=compute_dtype,
         )
     except ImportError:
-        logger.warning("bitsandbytes package not available. Skipping 4-bit quantization config.")
+        logger.warning(
+            "bitsandbytes package not available. Skipping 4-bit quantization config."
+        )
         return None
 
 
-def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str] = None) -> str:
+def run_qlora_training(
+    config: Dict[str, Any], data_path_override: Optional[str] = None
+) -> str:
     """
     Execute QLoRA fine-tuning using Hugging Face Transformers, PEFT, and TRL.
 
@@ -111,6 +119,7 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
         Path to the saved LoRA adapter directory.
     """
     from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+
     from src.data_loader import prepare_hf_dataset
 
     model_cfg = config.get("model", {})
@@ -121,7 +130,9 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
 
     model_name = model_cfg.get("name_or_path", "Qwen/Qwen2.5-1.5B-Instruct")
     output_dir = train_cfg.get("output_dir", "./checkpoints/qlora_adapter")
-    data_path = data_path_override or data_cfg.get("train_data_path", "data/sample_logs.jsonl")
+    data_path = data_path_override or data_cfg.get(
+        "train_data_path", "data/sample_logs.jsonl"
+    )
 
     use_cuda = torch.cuda.is_available()
     device_map = "auto" if use_cuda else None
@@ -159,14 +170,20 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
             use_gradient_checkpointing=train_cfg.get("gradient_checkpointing", True),
         )
 
-    logger.info("Configuring LoRA Adapter: r=%d, alpha=%d", lora_cfg.get("r", 16), lora_cfg.get("lora_alpha", 32))
+    logger.info(
+        "Configuring LoRA Adapter: r=%d, alpha=%d",
+        lora_cfg.get("r", 16),
+        lora_cfg.get("lora_alpha", 32),
+    )
     peft_config = LoraConfig(
         r=lora_cfg.get("r", 16),
         lora_alpha=lora_cfg.get("lora_alpha", 32),
         lora_dropout=lora_cfg.get("lora_dropout", 0.05),
         bias=lora_cfg.get("bias", "none"),
         task_type=lora_cfg.get("task_type", "CAUSAL_LM"),
-        target_modules=lora_cfg.get("target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"]),
+        target_modules=lora_cfg.get(
+            "target_modules", ["q_proj", "k_proj", "v_proj", "o_proj"]
+        ),
     )
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
@@ -191,12 +208,16 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
         weight_decay=float(train_cfg.get("weight_decay", 0.01)),
         max_grad_norm=float(train_cfg.get("max_grad_norm", 0.3)),
         logging_steps=train_cfg.get("logging_steps", 5),
-        eval_strategy="steps" if hasattr(TrainingArguments, "eval_strategy") else "steps",
+        eval_strategy=(
+            "steps" if hasattr(TrainingArguments, "eval_strategy") else "steps"
+        ),
         eval_steps=train_cfg.get("eval_steps", 25),
         save_strategy="steps",
         save_steps=train_cfg.get("save_steps", 25),
         save_total_limit=train_cfg.get("save_total_limit", 2),
-        bf16=train_cfg.get("bf16", False) and use_cuda and torch.cuda.is_bf16_supported(),
+        bf16=train_cfg.get("bf16", False)
+        and use_cuda
+        and torch.cuda.is_bf16_supported(),
         fp16=train_cfg.get("fp16", False) and use_cuda,
         optim=train_cfg.get("optim", "paged_adamw_8bit" if use_cuda else "adamw_torch"),
         gradient_checkpointing=train_cfg.get("gradient_checkpointing", True),
@@ -219,8 +240,11 @@ def run_qlora_training(config: Dict[str, Any], data_path_override: Optional[str]
             callbacks=[MemoryUsageCallback()],
         )
     except ImportError:
-        logger.warning("TRL SFTTrainer not found. Falling back to standard HuggingFace Trainer.")
+        logger.warning(
+            "TRL SFTTrainer not found. Falling back to standard HuggingFace Trainer."
+        )
         from transformers import DataCollatorForLanguageModeling, Trainer
+
         from src.data_loader import prepare_hf_dataset as prep_tok
 
         train_tok, eval_tok = prep_tok(
@@ -270,7 +294,12 @@ def merge_lora_to_base_model(
     from peft import PeftModel
 
     logger.info("Commencing LoRA weight merge...")
-    logger.info("Base model: %s | Adapter: %s | Target: %s", base_model_name, adapter_dir, output_dir)
+    logger.info(
+        "Base model: %s | Adapter: %s | Target: %s",
+        base_model_name,
+        adapter_dir,
+        output_dir,
+    )
 
     target_path = Path(output_dir)
     target_path.mkdir(parents=True, exist_ok=True)
@@ -291,7 +320,9 @@ def merge_lora_to_base_model(
     logger.info("Executing merge_and_unload() operation...")
     merged_model = model.merge_and_unload()
 
-    logger.info("Exporting merged FP16 model and tokenizer artifacts to %s...", output_dir)
+    logger.info(
+        "Exporting merged FP16 model and tokenizer artifacts to %s...", output_dir
+    )
     merged_model.save_pretrained(output_dir, safe_serialization=True)
     tokenizer.save_pretrained(output_dir)
 
@@ -300,13 +331,17 @@ def merge_lora_to_base_model(
     if tok_cfg_path.is_file():
         try:
             import json
+
             with open(tok_cfg_path, "r", encoding="utf-8") as f:
                 tok_cfg = json.load(f)
             if isinstance(tok_cfg.get("extra_special_tokens"), list):
                 tok_cfg["extra_special_tokens"] = {}
                 with open(tok_cfg_path, "w", encoding="utf-8") as f:
                     json.dump(tok_cfg, f, indent=2)
-                logger.info("Normalized extra_special_tokens in %s to dictionary format.", tok_cfg_path)
+                logger.info(
+                    "Normalized extra_special_tokens in %s to dictionary format.",
+                    tok_cfg_path,
+                )
         except Exception as exc:
             logger.warning("Could not sanitize tokenizer_config.json: %s", exc)
 
@@ -318,12 +353,16 @@ def merge_lora_to_base_model(
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    logger.info("Merged model checkpoint successfully exported to: %s", target_path.resolve())
+    logger.info(
+        "Merged model checkpoint successfully exported to: %s", target_path.resolve()
+    )
     return str(target_path.resolve())
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="QLoRA Instruction Tuning and FP16 Model Merging Pipeline.")
+    parser = argparse.ArgumentParser(
+        description="QLoRA Instruction Tuning and FP16 Model Merging Pipeline."
+    )
     parser.add_argument(
         "--config",
         type=str,
@@ -381,4 +420,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
